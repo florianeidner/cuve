@@ -178,14 +178,32 @@ int readLight() {
 }
 
 int readTemp(){
+  Serial.print("Read temperature from sensors.\n");
   int tempOld=tempChamber;
   
   tempChamber = int((((analogRead(pin_temp1)*5.0)/1024.0)-0.5)*100);
+  //MOCK
+  tempChamber = 23;
+  Serial.print("Chamber temperature:    \t");
+  Serial.print(tempChamber);
+  Serial.print("°C\n");
+
   
   tempElectronics = int((((analogRead(pin_temp2)*5.0)/1024.0)-0.5)*100);
+  //MOCK
+  tempElectronics = 24;
+  Serial.print("Electronics temperature:\t");
+  Serial.print(tempElectronics);
+  Serial.print("°C\n");
   
   tempHeating = int((((analogRead(pin_temp3)*5.0)/1024.0)-0.5)*100);
-  
+    //MOCK
+  tempHeating = 25;
+  Serial.print("Heating temperature:    \t");
+  Serial.print(tempHeating);
+  Serial.print("°C\n");
+
+
   if (tempChamber != tempOld){
   
     screen_updateTemp();
@@ -495,6 +513,7 @@ int screen_default() {
 
 
 int screen_updateStatus(byte processStatus){
+  Serial.print("Update status on screen.\n");
   tft.fillRect(0,60,tft.width(),100,ILI9340_WHITE);
   tft.setTextSize(3);
   tft.setTextColor(ILI9340_BLACK);
@@ -519,6 +538,7 @@ int screen_updateStatus(byte processStatus){
 
 
 int screen_updateTemp(){
+  Serial.print("Update current temperature on screen.\n");
   tft.setTextColor(ILI9340_BLACK);
   tft.setTextSize(2);
   tft.fillRect(100,170,25,20,ILI9340_WHITE);
@@ -542,7 +562,7 @@ int screen_updateTemp(){
 }
 
 int screen_updateInput() {
-  Serial.print("\nUpdate Screen");
+  Serial.print("Update input values on screen.\n");
   tft.fillRect(0, tft.height()-50, tft.width(),tft.height(),0x7BEF);
   tft.setTextColor(ILI9340_WHITE);
   tft.setTextSize(3);
@@ -624,6 +644,7 @@ int ctrl_adjustTemp(){
     if (tempHeating > 90){
       digitalWrite(pin_heating,LOW); //Heating off
       digitalWrite(pin_heating,LOW); //Fan On
+      Serial.print("Emergency stop - Chamber tempt to high!\n");
       exit(0);
       }
     if (tempChamber > (temp+2)){
@@ -793,6 +814,7 @@ void setup() {
 
 
 void loop() {
+  Serial.print("Starting main program.\n");
   while (true){
     
     screen_updateStatus(1);
