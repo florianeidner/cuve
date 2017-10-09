@@ -22,7 +22,7 @@
 #define csTFT 10
 #define csUI 9
 #define dc 8
-#define rst A3
+#define rst 17
 
 //Fans
 #define pin_fanBoard 2
@@ -36,9 +36,9 @@
 #define pin_heating 4
 
 //Temp Sensors
-#define pin_temp1 14
-#define pin_temp2 15
-#define pin_temp3 16
+#define pin_temp1 15
+#define pin_temp2 16
+
 
 //External device - If this Pin is high, a device is connected and I2C is interfaced
 #define pin_externalSensor 17
@@ -70,7 +70,7 @@ int deviceCode = 0;
 int lux = 0;
 int tempChamber;
 int tempElectronics;
-int tempHeating;
+
 int tempStatus=0;
 
 //Set input range
@@ -195,14 +195,6 @@ int readTemp(){
   Serial.print("Electronics temperature:\t");
   Serial.print(tempElectronics);
   Serial.print("°C\n");
-  
-  tempHeating = int((((analogRead(pin_temp3)*5.0)/1024.0)-0.5)*100);
-    //MOCK
-  tempHeating = 25;
-  Serial.print("Heating temperature:    \t");
-  Serial.print(tempHeating);
-  Serial.print("°C\n");
-
 
   if (tempChamber != tempOld){
   
@@ -641,12 +633,7 @@ int testRelay(){
 
 // Control functions
 int ctrl_adjustTemp(){
-    if (tempHeating > 90){
-      digitalWrite(pin_heating,LOW); //Heating off
-      digitalWrite(pin_heating,LOW); //Fan On
-      Serial.print("Emergency stop - Chamber tempt to high!\n");
-      exit(0);
-      }
+
     if (tempChamber > (temp+2)){
       digitalWrite(pin_heating,LOW); //Heater off
       digitalWrite(pin_fanHeating,LOW);    //Fan on
@@ -738,7 +725,7 @@ void setup() {
 
   // Setting Pin Mode
   byte pins_out[] = {pin_fanBoard, pin_fanHeating, pin_led1, pin_led2, pin_led3, pin_heating,csUI};
-  byte pins_in[] = {pin_temp1, pin_temp2, pin_temp3, pin_externalSensor};
+  byte pins_in[] = {pin_temp1, pin_temp2, pin_externalSensor};
 
   Serial.println("Setting pins...");
   for (int pin = 0; pin < (sizeof(pins_out)/sizeof(byte)); pin++) {
