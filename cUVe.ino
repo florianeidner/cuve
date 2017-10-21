@@ -64,6 +64,8 @@
 *	GLOBAL VARS   *
 ******************/
 
+byte DEBUG = 0; //Enter Debug mode by setting this to 1 or press the button on startup.
+
 int button = 0;
 float temp = 0;
 float timer = 0;
@@ -127,17 +129,18 @@ int readUI() {
   light = readADC(channel_light);
   light = int((((1024-light)/1024)*lightMax));
   
-//  DEBUG:
-//  Serial.print(" -> Button: ");
-//  Serial.print(button);
-//  Serial.print(" -> Temp: ");
-//  Serial.println(temp);
+  if (DEBUG) {
+    Serial.print(" -> Button: ");
+    Serial.print(button);
+    Serial.print(" -> Temp: ");
+    Serial.println(temp);
 
-//  Serial.print(" -> Timer: ");
-//  Serial.println(timer);
+    Serial.print(" -> Timer: ");
+    Serial.println(timer);
 
-//  Serial.print(" -> Light: ");
-//  Serial.println(light);
+    Serial.print(" -> Light: ");
+    Serial.println(light);
+  }
 }
 
 unsigned int readADC(int ch) {
@@ -159,11 +162,12 @@ unsigned int readADC(int ch) {
   result |= (val & 0x80) >> 7;
   result = result & 0x3FF;
   
-//   DEBUG:
-//  Serial.print("ADC Channel: ");
-//  Serial.print(ch);
-//  Serial.print(" = ");
-//  Serial.print("result");
+  if (DEBUG) {
+    Serial.print("ADC Channel: ");
+    Serial.print(ch);
+    Serial.print(" = ");
+    Serial.print("result");
+  }
 
   return result;
 }
@@ -200,16 +204,16 @@ int readTemp(){
     screen_updateTemp();
   }
   
-//  DEBUG
+  if (DEBUG) {
   
-//  Serial.print("Chamber temperature:    \t");
-//  Serial.print(tempChamber);
-//  Serial.print("°C\n");
-//  
-//  Serial.print("Electronics temperature:\t");
-//  Serial.print(tempElectronics);
-//  Serial.print("°C\n");
-  
+    Serial.print("Chamber temperature:    \t");
+    Serial.print(tempChamber);
+    Serial.print("°C\n");
+ 
+    Serial.print("Electronics temperature:\t");
+    Serial.print(tempElectronics);
+    Serial.print("°C\n");
+  }
 }
 
 
@@ -526,6 +530,13 @@ int screen_default() {
   tft.setCursor(260, 213);
   tft.print("min");
 
+  if (DEBUG) {
+  tft.setCursor(5,5);
+  tft.setTextSize(2);
+  tft.setTextColor(ILI9340_WHITE);
+  tft.print("DEBUG ON");
+  }
+
   return 0;
 }
 
@@ -779,10 +790,12 @@ int ctrl_finished(){
 
 
 void setup() {
+
+  
   
   Serial.begin(9600);
   while (!Serial);
-
+  
   Serial.println("Starting up...");
 
   // Setting Pin Mode
@@ -795,7 +808,7 @@ void setup() {
     digitalWrite(pins_out[pin],LOW);
   }
   
- for (int pin = 0; pin < (sizeof(pins_in)/sizeof(byte)); pin++) {
+  for (int pin = 0; pin < (sizeof(pins_in)/sizeof(byte)); pin++) {
     pinMode(pins_in[pin], INPUT);
   }
 
@@ -807,6 +820,9 @@ void setup() {
   
   SPI.setClockDivider(SPI_CLOCK_DIV8);
 
+  if (readADC(channel_button) > button_threshold) {
+    DEBUG=1;
+  }
   
   //Set TFT options
   Serial.println("Set TFT options...");
