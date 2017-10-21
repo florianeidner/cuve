@@ -9,6 +9,7 @@
 #include <gfxfont.h>
 
 #include "SPI.h"
+
 #include "Wire.h"
 
 /****************** 
@@ -41,7 +42,7 @@
 
 
 //External device - If this Pin is high, a device is connected and I2C is interfaced
-#define pin_externalSensor 17
+#define pin_externalSensor 14
 
 
 
@@ -49,11 +50,13 @@
 * DEFINE ADC CHANNEL *
 *********************/
 
-#define channel_temp 1
-#define channel_light 2
+#define channel_temp 2
+#define channel_light 1
 #define channel_timer 3
 
 #define channel_button 0
+
+#define button_threshold 800
 
 
 
@@ -68,13 +71,13 @@ float light = 0;
 int oldValues = 0;
 int deviceCode = 0;
 int lux = 0;
-int tempChamber;
+int tempChamber=0;
 int tempElectronics;
 
 int tempStatus=0;
 
 //Set input range
-int tempMax=65; //in °C
+int tempMax=85; //in °C
 int timerMax=240; //in min
 int lightMax = 7; //Only 7 steps from combinations of light array 1,2,3
 
@@ -91,7 +94,7 @@ Adafruit_ILI9340 tft = Adafruit_ILI9340(csTFT, dc, rst);
 
 //The User Interface (3 Potis + Button) are connected via an MCP3008), therefor
 // the SPI Pins need to be set (http://arduinolearning.com/code/arduino-and-mcp3008.php)
-//MCP3008 adc(sclk,mosi,miso,csUI); //Uncommented. I dont know why
+//MCP3008 adc(sclk,mosi,miso,csUI); //Uncommented. SPI directly implemented
 
 //Initialize External light Sensor
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
@@ -106,30 +109,35 @@ Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 1234
 int readUI() {
   button = readADC(channel_button);
 
-  if (button>800){
+  if (button>button_threshold){
     button =1;
-    Serial.println(" -> Button: 1");
     }
   else{
     button=0;
-    Serial.println(" -> Button: 0");
     }
   
   temp = readADC(channel_temp);
   temp = int(((1024-temp)/1024)*(tempMax-20)+20);
-  Serial.print(" -> Temp: ");
-  Serial.println(temp);
+
   
   timer = readADC(channel_timer);
   timer = int((((1024-timer)/1024)*(timerMax-5))/5);
   timer = timer*5+5;
-  Serial.print(" -> Timer: ");
-  Serial.println(timer);
 
   light = readADC(channel_light);
   light = int((((1024-light)/1024)*lightMax));
-  Serial.print(" -> Light: ");
-  Serial.println(timer);
+  
+//  DEBUG:
+//  Serial.print(" -> Button: ");
+//  Serial.print(button);
+//  Serial.print(" -> Temp: ");
+//  Serial.println(temp);
+
+//  Serial.print(" -> Timer: ");
+//  Serial.println(timer);
+
+//  Serial.print(" -> Light: ");
+//  Serial.println(light);
 }
 
 unsigned int readADC(int ch) {
@@ -137,6 +145,7 @@ unsigned int readADC(int ch) {
   
   int command = 0b11 << 6;
   command |= (ch & 0x07) << 3;
+  digitalWrite(csUI, HIGH);
   digitalWrite(csUI, LOW);
 
   byte val = 0;
@@ -150,11 +159,12 @@ unsigned int readADC(int ch) {
   result |= (val & 0x80) >> 7;
   result = result & 0x3FF;
   
-  digitalWrite(csUI, HIGH);
-  Serial.print("ADC Channel: ");
-  Serial.print(ch);
-  Serial.print(" = ");
-  Serial.print("result");
+//   DEBUG:
+//  Serial.print("ADC Channel: ");
+//  Serial.print(ch);
+//  Serial.print(" = ");
+//  Serial.print("result");
+
   return result;
 }
 
@@ -182,24 +192,24 @@ int readTemp(){
   int tempOld=tempChamber;
   
   tempChamber = int((((analogRead(pin_temp1)*5.0)/1024.0)-0.5)*100);
-  //MOCK
-  tempChamber = 23;
-  Serial.print("Chamber temperature:    \t");
-  Serial.print(tempChamber);
-  Serial.print("°C\n");
 
   
   tempElectronics = int((((analogRead(pin_temp2)*5.0)/1024.0)-0.5)*100);
-  //MOCK
-  tempElectronics = 24;
-  Serial.print("Electronics temperature:\t");
-  Serial.print(tempElectronics);
-  Serial.print("°C\n");
 
   if (tempChamber != tempOld){
-  
     screen_updateTemp();
   }
+  
+//  DEBUG
+  
+//  Serial.print("Chamber temperature:    \t");
+//  Serial.print(tempChamber);
+//  Serial.print("°C\n");
+//  
+//  Serial.print("Electronics temperature:\t");
+//  Serial.print(tempElectronics);
+//  Serial.print("°C\n");
+  
 }
 
 
@@ -207,7 +217,7 @@ int readTemp(){
 int screen_default() {
   tft.fillScreen(ILI9340_WHITE);
   tft.fillRect(0, 0, tft.width(),35,0x7BEF);
-  tft.fillRect(0, tft.height()-50, tft.width(),tft.height(),0x7BEF);
+  tft.fillRect(0, tft.height()-35, tft.width(),tft.height(),0x7BEF);
   tft.fillRect(95,15, 142,75,0xffff);
   tft.drawLine(102, 10, 229, 10,0xfb20);
   tft.drawLine(99, 11, 231, 11,0xfb20);
@@ -496,33 +506,49 @@ int screen_default() {
   tft.drawLine(97, 59, 234, 59,0xfb20);
   tft.drawLine(98, 60, 233, 60,0xfb20);
   tft.drawLine(100, 61, 231, 61,0xfb20);
-  tft.setCursor(30,170);
+  tft.setCursor(30,185);
   tft.setTextSize(2);
   tft.setTextColor(ILI9340_BLACK);
   tft.print("Temp:");
+
+  tft.setTextSize(3);
+
+  tft.drawCircle(53,216,3,0xC618);
+  tft.setCursor(59,213);
+  tft.setTextColor(0xC618);
+  tft.print("C");
+
+  tft.setCursor(130, 213);
+  tft.setTextColor(0xC618);
+  tft.print("lux");
+
+  tft.setTextColor(0xC618);
+  tft.setCursor(260, 213);
+  tft.print("min");
+
   return 0;
 }
 
 
 int screen_updateStatus(byte processStatus){
   Serial.print("Update status on screen.\n");
-  tft.fillRect(0,60,tft.width(),100,ILI9340_WHITE);
+  tft.fillRect(0,80,tft.width(),105,ILI9340_WHITE);
   tft.setTextSize(3);
   tft.setTextColor(ILI9340_BLACK);
   
   switch(processStatus){
     case 1:{
-      tft.setCursor(60,70);
+      tft.setCursor(60,80);
       tft.print("Press button");
-      tft.setCursor(100,100);
+      tft.setCursor(100,120);
       tft.print("to start");
       break;}
     case 2:{
-      tft.setCursor(80,130);
+      tft.setCursor(80,140);
       tft.print("Heating Up");
       break;}
     case 3:{
-      tft.setCursor(45,130);
+      tft.setCursor(45,140);
       tft.print("Processing...");
       break;}
   }
@@ -531,83 +557,100 @@ int screen_updateStatus(byte processStatus){
 
 int screen_updateTemp(){
   Serial.print("Update current temperature on screen.\n");
-  tft.setTextColor(ILI9340_BLACK);
+  tft.setTextColor(ILI9340_BLACK,ILI9340_WHITE);
   tft.setTextSize(2);
-  tft.fillRect(100,170,25,20,ILI9340_WHITE);
-  tft.setCursor(100,170);
+  tft.setCursor(100,185);
   tft.print(tempChamber);
-  tft.print(" C - ");
-  tft.drawCircle(130,172,2,ILI9340_BLACK);
-  tft.fillRect(170,170,150,20,ILI9340_WHITE);
+  tft.print(" C -");
+  tft.drawCircle(130,187,2,ILI9340_BLACK);
+}
+
+int screen_updateHeatingStatus(){
+  Serial.print("Update heating status on screen.\n");
+  tft.setCursor(180,185);
+  tft.setTextSize(2);
+
   if (tempStatus == 1){
-  tft.setTextColor(ILI9340_RED);
-  tft.print("HEATING");
+  tft.setTextColor(ILI9340_RED,ILI9340_WHITE);
+  tft.print("HEATING  ");
   }
   else if (tempStatus == -1){
-  tft.setTextColor(ILI9340_BLUE);
-  tft.print("COOL DOWN");  
+  tft.setTextColor(ILI9340_BLUE,ILI9340_WHITE);
+  tft.print("COOL DOWN");
   }
   else{
-  tft.setTextColor(ILI9340_BLACK);
-  tft.print("TEMP OK");
+  tft.setTextColor(ILI9340_BLACK,ILI9340_WHITE);
+  tft.print("TEMP OK  ");
   }
 }
 
 int screen_updateInput() {
   Serial.print("Update input values on screen.\n");
-  tft.fillRect(0, tft.height()-50, tft.width(),tft.height(),0x7BEF);
-  tft.setTextColor(ILI9340_WHITE);
+
+  tft.setTextColor(ILI9340_WHITE,0x7BEF);
   tft.setTextSize(3);
-  tft.setCursor(10, 200);
+
+
+  tft.setCursor(10, 213);
   tft.print(temp,0);
-  tft.drawCircle(50,203,3,0xC618);
-  tft.setCursor(56,200);
-  tft.setTextColor(0xC618);
-  tft.print("C");
-  tft.setCursor(90, 200);
-  tft.setTextColor(ILI9340_WHITE);
+  
+  tft.setCursor(113, 213);
   tft.print(light,0);
-  tft.setTextColor(0xC618);
-  tft.print("lux");
-  tft.setCursor(210, 200);
-  tft.setTextColor(ILI9340_WHITE);
+
+
+
+  tft.setCursor(204, 213);
+
+  int offset = 0;
+  
+  if (timer < 9) {
+    tft.print("  ");
+    (offset = 36);
+  }
+
+  else if (timer < 99) {
+    tft.print(" ");
+    (offset = 18);
+  }
+  
+  tft.setCursor(204 + offset , 213);
   tft.print(timer,0);
-  tft.setTextColor(0xC618);
-  tft.print("min");
-	//  switch (tempStatus){
-	//    tft.setCursor(60,130);
-	//    case -1:
-	//    tft.print("Cooling down");  
-	//    case 0:
-	//    tft.print("Temp OK");
-	//    case 1:
-	//    tft.print("Heating up");
-	//  }
+  
 }
 
 int screen_updateTimer(int Min,int Sec){
-  tft.fillRect(0,75,tft.width(),40,ILI9340_WHITE);
+//  tft.fillRect(0,75,tft.width(),40,ILI9340_WHITE);
+  
   tft.setTextSize(5);
-  tft.setTextColor(ILI9340_BLACK);
-  int x = 0;
-  if (Min<10){
-    x=28;
+  tft.setTextColor(ILI9340_BLACK,ILI9340_WHITE);
+
+  String timer_str = "";
+  int offset = 10;
+
+  tft.setCursor(70+offset,80);
+  
+  if (Min < 100) {
+    timer_str.concat(" ");
+    tft.setCursor(55+offset,80);
   }
-  else if (Min>99){
-    x=-28;
+  
+  if (Min < 10) {
+    timer_str.concat(" ");
+    tft.setCursor(40+offset,80);
   }
-  tft.setCursor(117+x,75);
-  tft.print(Min);
-  tft.setCursor(140,75);
-  tft.print(" : ");
-  x=0;
-  if (Sec<10){
-    x=28;
-    tft.setCursor(190,75);
-    tft.print(0); 
-  }
-  tft.setCursor(190+x,75);
-  tft.print(Sec);
+
+  timer_str.concat(Min);
+
+  timer_str.concat(":");
+
+  if (Sec < 10) timer_str.concat("0");
+
+  timer_str.concat(Sec);
+
+  timer_str.concat("  ");
+
+  tft.print(timer_str);
+  
 }
 
 
@@ -615,6 +658,13 @@ int screen_updateTimer(int Min,int Sec){
 // Test functions
 int testRelay(){
   //testRelay
+    Serial.println("Testing Relay");
+  
+    digitalWrite(pin_heating,HIGH);
+    digitalWrite(pin_led1,HIGH);
+    digitalWrite(pin_led2,HIGH);
+    digitalWrite(pin_led3,HIGH);
+    delay(500);
     digitalWrite(pin_led1,LOW);
     delay(500);
     digitalWrite(pin_led2,LOW);
@@ -623,35 +673,47 @@ int testRelay(){
     delay(500);
     digitalWrite(pin_heating,LOW);
     delay(500);
-    digitalWrite(pin_heating,HIGH);
-    digitalWrite(pin_led1,HIGH);
-    digitalWrite(pin_led2,HIGH);
-    digitalWrite(pin_led3,HIGH);
 }
-
 
 
 // Control functions
 int ctrl_adjustTemp(){
 
+    int oldStatus= tempStatus;
+
     if (tempChamber > (temp+2)){
       digitalWrite(pin_heating,LOW); //Heater off
-      digitalWrite(pin_fanHeating,LOW);    //Fan on
+      digitalWrite(pin_fanHeating,HIGH);    //Fan on
       tempStatus=-1;
+      Serial.println("Chamber Temperature to high, turn off heater.");
       }
-    else if (tempChamber<(temp)){
+
+    else if (tempChamber < temp){
       digitalWrite(pin_heating,HIGH); //Heater on
-      digitalWrite(pin_fanHeating,LOW);    //Fan on
+      digitalWrite(pin_fanHeating,HIGH);    //Fan on
       tempStatus=1;
+      Serial.println("Chamber Temperature to low, turn on fan and heater.");
       }
+
     else{
+      digitalWrite(pin_heating,LOW); //Heater off
       tempStatus=0;
+      Serial.println("Chamber Temperature is ok.");
     }
-    if (tempElectronics > 40){
-      digitalWrite(pin_fanBoard,LOW); //Fan on
+
+
+    if (tempElectronics > 20){
+      digitalWrite(pin_fanBoard,HIGH); //Fan on
+      Serial.println("Electronics temperature to high, turn on fan.");
     }
+
     else{
-      digitalWrite(pin_fanBoard,HIGH);
+      digitalWrite(pin_fanBoard,LOW);
+      Serial.println("Electronics temperature is ok, turn fan off.");
+    }
+
+    if (oldStatus != tempStatus) {
+      screen_updateHeatingStatus();
     }
 }
 
@@ -724,7 +786,7 @@ void setup() {
   Serial.println("Starting up...");
 
   // Setting Pin Mode
-  byte pins_out[] = {pin_fanBoard, pin_fanHeating, pin_led1, pin_led2, pin_led3, pin_heating,csUI};
+  byte pins_out[] = {pin_fanBoard, pin_fanHeating, pin_led1, pin_led2, pin_led3, pin_heating,csUI,csTFT};
   byte pins_in[] = {pin_temp1, pin_temp2, pin_externalSensor};
 
   Serial.println("Setting pins...");
@@ -737,21 +799,19 @@ void setup() {
     pinMode(pins_in[pin], INPUT);
   }
 
-  digitalWrite(csUI, HIGH);
-
   Serial.println("Start SPI for UI and TFT...");
-  //SPI init
+ 
   tft.begin();
   
   SPI.begin(); // This is important or it will crush
-
+  
   SPI.setClockDivider(SPI_CLOCK_DIV8);
+
   
   //Set TFT options
   Serial.println("Set TFT options...");
   tft.setRotation(1);
   screen_default();
-
   //READ UI
   readUI();
 
@@ -803,55 +863,49 @@ void setup() {
 void loop() {
   Serial.print("Starting main program.\n");
   while (true){
-    
+
     screen_updateStatus(1);
 
     screen_updateInput();
+
+    screen_updateHeatingStatus();
     
     button = 0;
     
-    while (button==0){
+    while (readADC(channel_button) < button_threshold){
       
-      oldValues = (temp*timer*(light+1)); //Hash old values
-      
+      oldValues = (temp+timer*(light+1)); //Hash old values
+
       readUI();
-      
-      if ((temp*timer*(light+1)) !=  oldValues){
+
+      if ((temp+timer*(light+1)) !=  oldValues){
+        
         screen_updateInput();
+      
       }
       
       readTemp();
       
       ctrl_adjustTemp();
     }
-    
-    delay(500);
-   
-    button=0;
     
     screen_updateStatus(2);
     
     screen_updateTimer(timer,0);
+
+    button=0;
+
+    delay(1000);
     
-    while ((tempStatus !=0) && (button!=1)){
-      Serial.println("Waiting until heated to set temperatur");
+    while ((tempStatus !=0) && (readADC(channel_button) < button_threshold)){
+      Serial.println("Waiting until heated to preset temperatur");
       readTemp();
       ctrl_adjustTemp();
-      button = readADC(channel_button);//adc.readADC(0);
-      if (button>800){
-        button =1;
-        //Exit loop and proceed with UV curing
-      }
-      else{
-        button=0;
-      }
-      delay(5000);    //for  testing
-      tempStatus = 0; //for testing
     }
 
     screen_updateStatus(3);
     unsigned long endTime = (millis()+(((timer*60)*1000)));
-    while ((millis()<endTime) && (button != 1)){
+    while ((millis()<endTime) && (readADC(channel_button) < button_threshold)){
       Serial.println("Starting processing...");
       ctrl_setLight(light);
       int timeLeftSec = ((endTime-(millis()))/1000);
@@ -860,14 +914,7 @@ void loop() {
       screen_updateTimer(timeLeftMin,timeLeftSec);
       delay(800);
       readTemp();
-      ctrl_adjustTemp();
-      button = readADC(channel_button);//adc.readADC(0);
-      if (button>800){
-        button =1;
-      }
-      else{
-        button=0;
-      }    
+      ctrl_adjustTemp();  
     }
     ctrl_setLight(0);
     if (button==0){
